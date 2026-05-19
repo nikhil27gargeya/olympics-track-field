@@ -112,7 +112,7 @@ function App() {
     }, FLIGHT_TIME);
   }, []);
 
-  const handleCityClick = useCallback((point: object, event: MouseEvent, coords: { lat: number; lng: number; altitude: number }) => {
+  const handleCityClick = useCallback((point: object, _event?: MouseEvent, _coords?: { lat: number; lng: number; altitude: number }) => {
     const city = point as City;
     setSelectedCity(city.name);
     setError(null);
@@ -375,4 +375,3 @@ function App() {
 }
 
 export default App;
-
