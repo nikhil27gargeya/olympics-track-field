@@ -17,7 +17,7 @@ services:
           name: olympics-visualization-db
           property: password
       - key: APP_CORS_ALLOWED_ORIGINS
-        value: https://olympics-visualization.vercel.app
+        value: https://olympics-visualization.vercel.app,https://olympics-track-field.vercel.app
 
 databases:
   - name: olympics-visualization-db
