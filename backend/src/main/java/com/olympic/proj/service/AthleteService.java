@@ -25,6 +25,14 @@ public class AthleteService {
         return athleteRepository.findAll();
     }
 
+    public List<Athlete> getAthletesByFilters(String city, String medal, String name) {
+        return athleteRepository.findAll().stream()
+            .filter(athlete -> city == null || city.isBlank() || athlete.getLocation().equalsIgnoreCase(city))
+            .filter(athlete -> medal == null || medal.isBlank() || "all".equalsIgnoreCase(medal) || athlete.getMedal() != null && athlete.getMedal().equalsIgnoreCase(medal))
+            .filter(athlete -> name == null || name.isBlank() || athlete.getName().toLowerCase().contains(name.toLowerCase()))
+            .collect(Collectors.toList());
+    }
+
     public List<Athlete> getAthletesFromNationality(String nationality) {
         return athleteRepository.findAll().stream()
             .filter(athlete -> athlete.getNationality().trim().equals(nationality))

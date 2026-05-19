@@ -51,6 +51,14 @@ public class AthleteController {
         return athleteService.searchByName(name);
     }  
 
+    @GetMapping("/athletes/filter")
+    public List<Athlete> filterAthletes(
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String medal,
+            @RequestParam(required = false) String name) {
+        return athleteService.getAthletesByFilters(city, medal, name);
+    }
+
     @PostMapping("/athletes")
     public String createAthlete(@RequestBody Athlete athlete) {
         athleteService.saveAthlete(athlete);

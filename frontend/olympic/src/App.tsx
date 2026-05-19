@@ -78,6 +78,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMedal, setSelectedMedal] = useState<string>('all');
   const prevCoords = useRef<Ring>({ lat: 0, lng: 0 });
+  const hasActiveResults = Boolean(selectedCity || searchQuery.trim() || selectedMedal !== 'all');
 
   const normalizeName = (name: string): string => {
     return name
@@ -86,11 +87,67 @@ function App() {
       .join(' ');
   };
 
+  const getMedalLabel = (medal: string) => {
+    switch (medal) {
+      case 'G':
+        return 'gold';
+      case 'S':
+        return 'silver';
+      case 'B':
+        return 'bronze';
+      default:
+        return 'all medals';
+    }
+  };
+
   const handleClose = () => {
     setSelectedCity(null);
     setAthletes([]);
     setError(null);
+    setSearchQuery('');
+    setSelectedMedal('all');
   };
+
+  const fetchFilteredAthletes = useCallback(async (filters: {
+    city?: string;
+    medal?: string;
+    name?: string;
+  }) => {
+    setError(null);
+    setIsLoading(true);
+
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+    const params = new URLSearchParams();
+
+    if (filters.city) {
+      params.set('city', filters.city);
+    }
+    if (filters.medal && filters.medal !== 'all') {
+      params.set('medal', filters.medal);
+    }
+    if (filters.name) {
+      params.set('name', filters.name);
+    }
+
+    const url = `${API_BASE_URL}/athletes/filter?${params.toString()}`;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      const data = await response.json();
+      setAthletes(data);
+    } catch (err) {
+      console.error('Filter Error:', err);
+      setError(`Failed to load athletes: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setAthletes([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const emitArc = useCallback((coords: Ring) => {
     const { lat: endLat, lng: endLng } = coords;
@@ -115,113 +172,63 @@ function App() {
   const handleCityClick = useCallback((point: object, _event?: MouseEvent, _coords?: { lat: number; lng: number; altitude: number }) => {
     const city = point as City;
     setSelectedCity(city.name);
-    setError(null);
-    setIsLoading(true);
     emitArc({ lat: city.lat, lng: city.lng });
-
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-    const url = `${API_BASE_URL}/athletes/city?city=${encodeURIComponent(city.name)}`;
-    
-    console.log('Fetching from:', url);
-
-    fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      mode: 'cors'
-    })
-      .then(async res => {
-        console.log('Response status:', res.status);
-        console.log('Response headers:', Object.fromEntries(res.headers.entries()));
-        
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error('Error response:', errorText);
-          throw new Error(`HTTP error! status: ${res.status}, message: ${errorText}`);
-        }
-        const data = await res.json();
-        console.log('Received data:', data);
-        setAthletes(data);
-      })
-      .catch(err => {
-        console.error("API Error:", err);
-        setError(`Failed to load athletes: ${err.message}`);
-        setAthletes([]);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, []);
+    void fetchFilteredAthletes({
+      city: city.name,
+      medal: selectedMedal,
+      name: searchQuery.trim() || undefined,
+    });
+  }, [fetchFilteredAthletes, searchQuery, selectedMedal]);
 
   const handleSearch = async (query: string) => {
+    setSearchQuery(query);
     if (!query.trim()) {
-      // If search is empty, fetch city data again
       if (selectedCity) {
-        handleCityClick({ name: selectedCity, lat: 0, lng: 0 } as City, {} as MouseEvent, { lat: 0, lng: 0, altitude: 0 });
+        void fetchFilteredAthletes({
+          city: selectedCity,
+          medal: selectedMedal,
+        });
+      } else if (selectedMedal !== 'all') {
+        void fetchFilteredAthletes({
+          medal: selectedMedal,
+        });
+      } else {
+        setAthletes([]);
       }
       return;
     }
-
-    setError(null);
-    setIsLoading(true);
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-    const url = `${API_BASE_URL}/athletes/search?name=${encodeURIComponent(query)}`;
-    
-    console.log('Searching with URL:', url);
-
-    try {
-      const response = await fetch(url);
-      console.log('Search response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Search error response:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-      }
-      
-      const data = await response.json();
-      console.log('Search results:', data);
-      setAthletes(data);
-    } catch (err) {
-      console.error("Search Error:", err);
-      setError(`Failed to search athletes: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      setAthletes([]);
-    } finally {
-      setIsLoading(false);
-    }
+    void fetchFilteredAthletes({
+      city: selectedCity || undefined,
+      medal: selectedMedal,
+      name: query,
+    });
   };
 
   const handleMedalFilter = async (medal: string) => {
-    if (medal === 'all') {
-      // If "All Medals" is selected, fetch city data again
-      if (selectedCity) {
-        handleCityClick({ name: selectedCity, lat: 0, lng: 0 } as City, {} as MouseEvent, { lat: 0, lng: 0, altitude: 0 });
-      }
+    setSelectedMedal(medal);
+    if (selectedCity) {
+      void fetchFilteredAthletes({
+        city: selectedCity,
+        medal,
+        name: searchQuery.trim() || undefined,
+      });
       return;
     }
 
-    setError(null);
-    setIsLoading(true);
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-    const url = `${API_BASE_URL}/athletes/medal?medal=${encodeURIComponent(medal)}`;
-    
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setAthletes(data);
-    } catch (err) {
-      console.error("Medal Filter Error:", err);
-      setError(`Failed to filter athletes: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      setAthletes([]);
-    } finally {
-      setIsLoading(false);
+    if (searchQuery.trim()) {
+      void fetchFilteredAthletes({
+        medal,
+        name: searchQuery.trim(),
+      });
+      return;
     }
+
+    if (medal === 'all') {
+      setAthletes([]);
+      return;
+    }
+
+    void fetchFilteredAthletes({ medal });
   };
 
   return (
@@ -266,7 +273,7 @@ function App() {
         overflowY: 'auto',
         boxShadow: '-2px 0 10px rgba(0,0,0,0.3)',
         flexShrink: 0,
-        transform: selectedCity ? 'translateX(0)' : 'translateX(100%)',
+        transform: hasActiveResults ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.3s ease-in-out',
         position: 'fixed',
         right: 0,
@@ -286,11 +293,17 @@ function App() {
           marginBottom: '1.5rem', 
           borderBottom: '2px solid #444', 
           paddingBottom: '0.5rem',
-          opacity: selectedCity ? 1 : 0,
+          opacity: hasActiveResults ? 1 : 0,
           transition: 'opacity 0.3s ease-in-out',
           paddingRight: '2rem'
         }}>
-          {selectedCity ? `Athletes from ${selectedCity}` : 'Click a city on the globe'}
+          {selectedCity
+            ? `Athletes from ${selectedCity} (${athletes.length}${selectedMedal === 'all' ? '' : ` ${getMedalLabel(selectedMedal)}`})`
+            : searchQuery.trim()
+              ? `Search results (${athletes.length})`
+              : selectedMedal !== 'all'
+                ? `${getMedalLabel(selectedMedal)} medal results (${athletes.length})`
+              : 'Click a city on the globe'}
         </h2>
         
         {/* Search and Filter Controls */}
@@ -337,8 +350,8 @@ function App() {
           >
             <option value="all">All Medals</option>
             <option value="G">Gold</option>
-            <option value="S">Silver</option>
-            <option value="B">Bronze</option>
+          <option value="S">Silver</option>
+          <option value="B">Bronze</option>
           </select>
         </div>
 
@@ -347,10 +360,10 @@ function App() {
         <ul style={{ 
           listStyle: 'none', 
           padding: 0,
-          opacity: selectedCity ? 1 : 0,
+          opacity: hasActiveResults ? 1 : 0,
           transition: 'opacity 0.3s ease-in-out'
         }}>
-          {!isLoading && athletes.length === 0 && selectedCity && <li>No athletes found.</li>}
+          {!isLoading && athletes.length === 0 && hasActiveResults && <li>No athletes found.</li>}
           {athletes.map((athlete, i) => (
             <li key={i} style={{ 
               marginBottom: '1rem', 
