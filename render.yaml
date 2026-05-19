@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: olympics-visualization-api
+    runtime: docker
+    plan: free
+    dockerContext: backend
+    dockerfilePath: backend/Dockerfile
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: olympics-visualization-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: olympics-visualization-db
+          property: password
+      - key: APP_CORS_ALLOWED_ORIGINS
+        value: https://olympics-visualization.vercel.app
+
+databases:
+  - name: olympics-visualization-db
+    plan: free
+    databaseName: olympic_db
+    user: olympics_user
