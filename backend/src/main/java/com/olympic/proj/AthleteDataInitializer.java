@@ -14,7 +14,6 @@ import java.util.regex.Pattern;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.olympic.proj.model.Athlete;
 import com.olympic.proj.repository.AthleteRepository;
@@ -42,10 +41,15 @@ public class AthleteDataInitializer implements CommandLineRunner {
     }
 
     @Override
-    @Transactional
     public void run(String... args) throws IOException {
         List<Athlete> athletes = loadAthletes();
-        athleteRepository.deleteAllInBatch();
+
+        long existingAthleteCount = athleteRepository.count();
+        if (existingAthleteCount >= athletes.size()) {
+            return;
+        }
+
+        athleteRepository.deleteAll();
         athleteRepository.saveAll(athletes);
     }
 
