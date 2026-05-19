@@ -42,9 +42,15 @@ public class AthleteDataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws IOException {
-        if (athleteRepository.count() == 0) {
-            athleteRepository.saveAll(loadAthletes());
+        List<Athlete> athletes = loadAthletes();
+        long existingAthleteCount = athleteRepository.count();
+
+        if (existingAthleteCount >= athletes.size()) {
+            return;
         }
+
+        athleteRepository.deleteAll();
+        athleteRepository.saveAll(athletes);
     }
 
     private List<Athlete> loadAthletes() throws IOException {
